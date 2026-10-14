@@ -9,123 +9,128 @@ from telegram.ext import (
     filters,
 )
 
-logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    level=logging.INFO,
-)
+logging.basicConfig(level=logging.INFO)
 
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
-MENU = ReplyKeyboardMarkup(
-    [
-        ["🎵 Создать песню", "✍️ Написать текст"],
-        ["🥁 Создать бит", "ℹ️ Помощь"],
-    ],
-    resize_keyboard=True,
-)
+TEXTS = {
+    "ru": {
+        "welcome": "🎧 Добро пожаловать в Sokrat Music AI!\nВыбери действие:",
+        "song": "🎵 Создать песню",
+        "lyrics": "✍️ Написать текст",
+        "beat": "🥁 Создать бит",
+        "language": "🌍 Язык",
+        "ask_song": "Опиши песню: тема, жанр, настроение.",
+        "ask_lyrics": "На какую тему написать песню?",
+        "ask_beat": "Какой бит нужен? Опиши стиль.",
+        "choose": "Выбери язык:",
+        "received": "✅ Задание принято!\n\nОписание: ",
+        "help": "Я помогу подготовить песню. Генерация аудио будет подключена отдельно.",
+    },
+    "uz": {
+        "welcome": "🎧 Sokrat Music AI ga xush kelibsiz!\nAmalni tanlang:",
+        "song": "🎵 Qo‘shiq yaratish",
+        "lyrics": "✍️ Qo‘shiq matni",
+        "beat": "🥁 Bit yaratish",
+        "language": "🌍 Til",
+        "ask_song": "Qo‘shiq mavzusi, janri va kayfiyatini yozing.",
+        "ask_lyrics": "Qo‘shiq qaysi mavzuda bo‘lsin?",
+        "ask_beat": "Qanday bit kerak? Uslubini yozing.",
+        "choose": "Tilni tanlang:",
+        "received": "✅ So‘rov qabul qilindi!\n\nTavsif: ",
+        "help": "Men qo‘shiq tayyorlashga yordam beraman. Audio yaratish keyin ulanadi.",
+    },
+    "tg": {
+        "welcome": "🎧 Ба Sokrat Music AI хуш омадед!\nАмалро интихоб кунед:",
+        "song": "🎵 Эҷоди суруд",
+        "lyrics": "✍️ Матни суруд",
+        "beat": "🥁 Эҷоди бит",
+        "language": "🌍 Забон",
+        "ask_song": "Мавзӯъ, жанр ва рӯҳияи сурудро нависед.",
+        "ask_lyrics": "Суруд дар бораи чӣ бошад?",
+        "ask_beat": "Кадом бит лозим аст? Услубро нависед.",
+        "choose": "Забонро интихоб кунед:",
+        "received": "✅ Дархост қабул шуд!\n\nТавсиф: ",
+        "help": "Ман барои омода кардани суруд кӯмак мекунам. Эҷоди аудио баъдтар пайваст мешавад.",
+    },
+}
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "🎧 Привет! Я твой карманный музыкальный продюсер!\n\n"
-        "Выбери, что хочешь создать:\n"
-        "🎵 Песню\n"
-        "✍️ Текст песни\n"
-        "🥁 Идею для бита\n\n"
-        "Пока генерация аудио не подключена, я помогу "
-        "подготовить текст и описание твоего будущего трека.",
-        reply_markup=MENU,
+def get_menu(lang):
+    t = TEXTS[lang]
+    return ReplyKeyboardMarkup(
+        [
+            [t["song"], t["lyrics"]],
+            [t["beat"], t["language"]],
+        ],
+        resize_keyboard=True,
     )
 
-async def handle_message(
-    update: Update,
-    context: ContextTypes.DEFAULT_TYPE,
-):
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    lang = context.user_data.get("lang", "ru")
+    await update.message.reply_text(
+        TEXTS[lang]["welcome"],
+        reply_markup=get_menu(lang),
+    )
+
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
+    lang = context.user_data.get("lang", "ru")
+    t = TEXTS[lang]
 
-    if text == "ℹ️ Помощь":
+    if text == "🌍 Язык" or text == "🌍 Til" or text == "🌍 Забон":
         await update.message.reply_text(
-            "Напиши тему песни, настроение и музыкальный стиль.\n"
-            "Например: романтическая узбекская песня о любви."
+            "🇷🇺 Русский\n🇺🇿 O‘zbekcha\n🇹🇯 Тоҷикӣ"
         )
+        context.user_data["mode"] = "language"
         return
 
-    if text == "✍️ Написать текст":
-        context.user_data["mode"] = "lyrics"
-        await update.message.reply_text(
-            "✍️ О какой теме написать песню?\n"
-            "Например: любовь, мама, дружба или день рождения."
-        )
+    if context.user_data.get("mode") == "language":
+        languages = {
+            "🇷🇺 Русский": "ru",
+            "🇺🇿 O‘zbekcha": "uz",
+            "🇹🇯 Тоҷикӣ": "tg",
+        }
+        if text in languages:
+            context.user_data["lang"] = languages[text]
+            context.user_data["mode"] = None
+            new_lang = languages[text]
+            await update.message.reply_text(
+                TEXTS[new_lang]["welcome"],
+                reply_markup=get_menu(new_lang),
+            )
+        else:
+            await update.message.reply_text("Выбери: 🇷🇺 Русский, 🇺🇿 O‘zbekcha или 🇹🇯 Тоҷикӣ")
         return
 
-    if text == "🎵 Создать песню":
-        context.user_data["mode"] = "song"
-        await update.message.reply_text(
-            "🎵 Опиши свою будущую песню: тему, язык, жанр и настроение."
-        )
-        return
+    actions = {
+        t["song"]: ("song", t["ask_song"]),
+        t["lyrics"]: ("lyrics", t["ask_lyrics"]),
+        t["beat"]: ("beat", t["ask_beat"]),
+    }
 
-    if text == "🥁 Создать бит":
-        context.user_data["mode"] = "beat"
-        await update.message.reply_text(
-            "🥁 Какой бит тебе нужен?\n"
-            "Например: энергичный рэп, поп или восточный ритм."
-        )
+    if text in actions:
+        mode, question = actions[text]
+        context.user_data["mode"] = mode
+        await update.message.reply_text(question)
         return
 
     mode = context.user_data.get("mode")
-
-    if mode == "lyrics":
-        answer = (
-            f"✍️ Тема песни: {text}\n\n"
-            "Куплет 1:\n"
-            f"Сегодня я пою о том, что важно: {text}.\n"
-            "Пусть эта мелодия подарит свет,\n"
-            "И сохранит воспоминания на много лет.\n\n"
-            "Припев:\n"
-            f"{text}, звучит моя душа,\n"
-            "Пусть эта песня будет хороша!\n\n"
-            "Это демонстрационный шаблон. "
-            "Подключив языковую модель, мы улучшим генерацию текстов."
+    if mode in ("song", "lyrics", "beat"):
+        await update.message.reply_text(
+            t["received"] + text + "\n\n" + t["help"]
         )
-    elif mode == "beat":
-        answer = (
-            "🥁 Идея для бита\n\n"
-            f"Твоё описание: {text}\n"
-            "Предлагаемый темп: 100 BPM.\n"
-            "Стиль и инструменты можно уточнить перед генерацией аудио.\n\n"
-            "Пока это текстовая концепция, а не готовый аудиофайл."
-        )
-    elif mode == "song":
-        answer = (
-            "🎵 Задание для будущей песни:\n\n"
-            f"{text}\n\n"
-            "Следующий этап — подключение музыкального AI API, "
-            "чтобы создавать настоящие аудиотреки с вокалом."
-        )
+        context.user_data["mode"] = None
     else:
-        answer = (
-            "Выбери действие в меню или нажми /start, "
-            "чтобы начать заново."
-        )
+        await update.message.reply_text(t["welcome"], reply_markup=get_menu(lang))
 
-    await update.message.reply_text(answer)
-
-async def main():
+def main():
     if not TOKEN:
-        raise RuntimeError("Не задан TELEGRAM_BOT_TOKEN")
+        raise RuntimeError("Set TELEGRAM_BOT_TOKEN in Render environment variables")
 
     app = Application.builder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(
-        MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message)
-    )
-
-    logging.info("Бот запускается")
-    await app.initialize()
-    await app.start()
-    await app.updater.start_polling()
-    await app.updater.idle()
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    app.run_polling()
 
 if __name__ == "__main__":
-    import asyncio
-    asyncio.run(main())
+    main()
