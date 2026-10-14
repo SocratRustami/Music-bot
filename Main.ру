@@ -1,0 +1,131 @@
+import os
+import logging
+from telegram import Update, ReplyKeyboardMarkup
+from telegram.ext import (
+    Application,
+    CommandHandler,
+    MessageHandler,
+    ContextTypes,
+    filters,
+)
+
+logging.basicConfig(
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    level=logging.INFO,
+)
+
+TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+
+MENU = ReplyKeyboardMarkup(
+    [
+        ["🎵 Создать песню", "✍️ Написать текст"],
+        ["🥁 Создать бит", "ℹ️ Помощь"],
+    ],
+    resize_keyboard=True,
+)
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        "🎧 Привет! Я твой карманный музыкальный продюсер!\n\n"
+        "Выбери, что хочешь создать:\n"
+        "🎵 Песню\n"
+        "✍️ Текст песни\n"
+        "🥁 Идею для бита\n\n"
+        "Пока генерация аудио не подключена, я помогу "
+        "подготовить текст и описание твоего будущего трека.",
+        reply_markup=MENU,
+    )
+
+async def handle_message(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+):
+    text = update.message.text.strip()
+
+    if text == "ℹ️ Помощь":
+        await update.message.reply_text(
+            "Напиши тему песни, настроение и музыкальный стиль.\n"
+            "Например: романтическая узбекская песня о любви."
+        )
+        return
+
+    if text == "✍️ Написать текст":
+        context.user_data["mode"] = "lyrics"
+        await update.message.reply_text(
+            "✍️ О какой теме написать песню?\n"
+            "Например: любовь, мама, дружба или день рождения."
+        )
+        return
+
+    if text == "🎵 Создать песню":
+        context.user_data["mode"] = "song"
+        await update.message.reply_text(
+            "🎵 Опиши свою будущую песню: тему, язык, жанр и настроение."
+        )
+        return
+
+    if text == "🥁 Создать бит":
+        context.user_data["mode"] = "beat"
+        await update.message.reply_text(
+            "🥁 Какой бит тебе нужен?\n"
+            "Например: энергичный рэп, поп или восточный ритм."
+        )
+        return
+
+    mode = context.user_data.get("mode")
+
+    if mode == "lyrics":
+        answer = (
+            f"✍️ Тема песни: {text}\n\n"
+            "Куплет 1:\n"
+            f"Сегодня я пою о том, что важно: {text}.\n"
+            "Пусть эта мелодия подарит свет,\n"
+            "И сохранит воспоминания на много лет.\n\n"
+            "Припев:\n"
+            f"{text}, звучит моя душа,\n"
+            "Пусть эта песня будет хороша!\n\n"
+            "Это демонстрационный шаблон. "
+            "Подключив языковую модель, мы улучшим генерацию текстов."
+        )
+    elif mode == "beat":
+        answer = (
+            "🥁 Идея для бита\n\n"
+            f"Твоё описание: {text}\n"
+            "Предлагаемый темп: 100 BPM.\n"
+            "Стиль и инструменты можно уточнить перед генерацией аудио.\n\n"
+            "Пока это текстовая концепция, а не готовый аудиофайл."
+        )
+    elif mode == "song":
+        answer = (
+            "🎵 Задание для будущей песни:\n\n"
+            f"{text}\n\n"
+            "Следующий этап — подключение музыкального AI API, "
+            "чтобы создавать настоящие аудиотреки с вокалом."
+        )
+    else:
+        answer = (
+            "Выбери действие в меню или нажми /start, "
+            "чтобы начать заново."
+        )
+
+    await update.message.reply_text(answer)
+
+async def main():
+    if not TOKEN:
+        raise RuntimeError("Не задан TELEGRAM_BOT_TOKEN")
+
+    app = Application.builder().token(TOKEN).build()
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(
+        MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message)
+    )
+
+    logging.info("Бот запускается")
+    await app.initialize()
+    await app.start()
+    await app.updater.start_polling()
+    await app.updater.idle()
+
+if __name__ == "__main__":
+    import asyncio
+    asyncio.run(main())
